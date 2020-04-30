@@ -31,11 +31,22 @@ clean:
 	-rm $(OBJDIR)/*.o $(OBJDIR)/*.mod *.so f90wrap* pymain.py *.pyc mesh/*
 
 test: all
-	python3 pyconstruct2d.py -f mesh/naca12
-	python3 pyconstruct2d.py --sharp -f mesh/naca12
+	echo 'Test naca12           - 2D'
+	python3 naca12.py -f mesh/naca12 -dz 0.
+	echo 'Test naca12-sharp     - 2D'
+	python3 naca12.py --sharp -f mesh/naca12 -dz 0.
+	echo 'Test naca12-3D        - 3D'
+	python3 naca12.py -f mesh/naca12-3D -dz 0.1
+	echo 'Test naca12-3D-sharp - 3D'
+	python3 naca12.py --sharp -f mesh/naca12-3D -dz 0.1
 
 diff: test
-	echo 'Test naca12.dat'
+	echo 'Test naca12.dat       - 2D'
 	diff mesh/naca12.dat       ref/naca12.dat
-	echo 'Test naca12-sharp.dat'
+	echo 'Test naca12-sharp.dat - 2D'
 	diff mesh/naca12-sharp.dat ref/naca12-sharp.dat
+	echo 'Test naca12.dat       - 3D'
+	diff mesh/naca12-3D.dat       ref/naca12-3D.dat
+	echo 'Test naca12-sharp.dat - 3D'
+	diff mesh/naca12-3D-sharp.dat ref/naca12-3D-sharp.dat
+
