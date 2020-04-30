@@ -7,15 +7,22 @@ import Converter.Internal as I
 import Converter.PyTree   as C
 import Connector.PyTree   as X
 
-def greeting(version):
-  print(f'Use Version: {version} of Construct2D, a structured grid generator for airfoils')
+import etc.transform.__future__ as trf
 
+import argparse
+
+# ----------------------------------------------------------------------
+# Airfoil surface equation(s)
+# ----------------------------------------------------------------------
 def airfoil_naca0012(x):
   return 0.6*(0.2969*np.sqrt(x) - 0.1260*x - 0.3516*x*x + 0.2843*x*x*x - 0.1015*x*x*x*x)
 
 def airfoil_naca0012_sharp(x):
   return 0.6*(0.2969*np.sqrt(x) - 0.1260*x - 0.3516*x*x + 0.2843*x*x*x - 0.1036*x*x*x*x)
 
+# ----------------------------------------------------------------------
+# Airfoil surface generation
+# ----------------------------------------------------------------------
 def create_airfoil(nsize, airfoil_func):
   xfoil = np.vectorize(airfoil_func)
 
@@ -36,18 +43,33 @@ def create_airfoil(nsize, airfoil_func):
 
   return x, y
 
-if __name__ == "__main__":
-  greeting('2.1.4')
 
-  nsize = 100
-  sharp = True
+if __name__ == "__main__":
+  parser = argparse.ArgumentParser(description='Naca0012 mesh generation.')
+  parser.add_argument('--sharp', action="store_true", default=False,
+                      help='sharp=True, sharp trailing edge -> C grid mesh, sharp=False, blunt trailing edge -> O grid mesh')
+  parser.add_argument('-n', action="store", dest="nsize", type=int, default=100,
+                      help="Sise of the upper airfoil surface discretization.")
+  parser.add_argument('-f', action="store", dest="name", type=str, default="naca12",
+                      help="Project name.")
+
+  args = parser.parse_args()
+
+  sharp = args.sharp
+  nsize = args.nsize
+
+  # Airfoil surface discratization
+  # -----------------------------
   if sharp:
-    project_name = "naca12-sharp"
+    project_name = f"{args.name}-sharp"
     x, y = create_airfoil(nsize, airfoil_naca0012_sharp)
     y[0] =  y[-1] = 0.
   else:
-    project_name = "naca12"
+    project_name = args.name
     x, y = create_airfoil(nsize, airfoil_naca0012)
+
+  # Airfoil surface output
+  # ----------------------
   # plt.plot(x, y, 'o')
   # plt.show()
   # with open("_naca0012.arf", "w") as f:
@@ -55,22 +77,32 @@ if __name__ == "__main__":
   #   for i in range(x.shape[0]):
   #       f.write(f" {x[i]} {y[i]}\n")
 
-  npoints = x.shape[0]
-
+  # Airfoil mesh generation thanks to Construct2D
+  #
+  # cf .https://sourceforge.net/projects/construct2d/
+  # -------------------------------------------------
   surf = pymain.vardef.airfoil_surface_type()
-  surf.npoints = npoints
+  # 'airfoil_surface_type' creation and initialization
+  surf.npoints = x.shape[0]
   pymain.memory.surf_allocation(surf)
   pymain.util.init_airfoil(x,y,surf)
 
+  # 'options_type' creation and initialization
   options = pymain.vardef.options_type()
   pymain.util.set_project_name_options(len(project_name), project_name.encode('utf-8'), options)
   pymain.util.set_defaults(surf, options)
   print(f"options = {options}")
 
+  # 'srf_grid_type' and 'grid_stats_type' creation
   grid   = pymain.vardef.srf_grid_type()
   qstats = pymain.vardef.grid_stats_type()
+
+  # Mesh and associated statictics computation
+  # ------------------------------------------
   pymain.main.compute_grid(b'SMTH', surf, options, grid, qstats)
 
+  # Mesh and associated statictics transfert
+  # ----------------------------------------
   create2d = False
   if create2d:
     shape2d = list(grid.x.shape)
@@ -96,6 +128,8 @@ if __name__ == "__main__":
       growthz[:,:,i] = qstats.growthz
       growthn[:,:,i] = qstats.growthn
 
+  # Create Python/CGNS tree from generated mesh
+  #--------------------------------------------
   # Create CGNS Tree
   t = I.newCGNSTree()
   b = I.newCGNSBase('Base', 3, 3, parent=t)
@@ -108,6 +142,7 @@ if __name__ == "__main__":
   I.newDataArray('SkewAngle', value=skewang, parent=f)
   I.newDataArray('GrowthZ', value=growthz, parent=f)
   I.newDataArray('GrowthN', value=growthn, parent=f)
+  C.convertPyTree2File(t, f'{project_name}.dat', format='fmt_tp')
 
   # Create Family
   fwall = I.newFamily(name='Wall', parent=b)
@@ -130,10 +165,31 @@ if __name__ == "__main__":
   C._addBC2Zone(t, 'sym',   'FamilySpecified:Sym',   'kmin')
   C._addBC2Zone(t, 'sym',   'FamilySpecified:Sym',   'kmax')
 
-  I.printTree(t)
-  C.convertPyTree2File(t, f'{project_name}.hdf', format='bin_hdf')
-  C.convertPyTree2File(t, f'{project_name}.cgns', format='bin_adf')
+  allbcs = []
+  nref = trf.BCNRef(t, fnref)
+  allbcs.append(nref)
+  wall = trf.BCWallAdia(t, fwall)
+  allbcs.append(wall)
+  sym  = trf.BCSym(t, fsym)
+  allbcs.append(sym)
+  for bc in allbcs:
+    bc.create()
 
+  # Save structured mesh
+  #---------------------
+  I.printTree(t)
+  C.convertPyTree2File(t, f'{project_name}S.hdf', format='bin_hdf')
+  C.convertPyTree2File(t, f'{project_name}S.cgns', format='bin_adf')
+
+  # Create and save NGon unstructured mesh
+  #---------------------------------------
+  tu = C.convertArray2NGon(t)
+  I.printTree(tu)
+  C.convertPyTree2File(tu, f'{project_name}U.hdf', format='bin_hdf')
+  C.convertPyTree2File(tu, f'{project_name}U.cgns', format='bin_adf')
+
+  # Release allocated Fortran memory
+  #---------------------------------
   pymain.memory.qstats_deallocation(qstats)
   pymain.memory.grid_deallocation(grid)
   pymain.memory.surf_deallocation(surf)

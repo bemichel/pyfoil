@@ -28,7 +28,14 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.f90
 	gfortran $(FCFLAGS) -c -o $@ $<
 
 clean:
-	-rm $(OBJDIR)/*.o $(OBJDIR)/*.mod *.so f90wrap* pymain.py *.pyc
+	-rm $(OBJDIR)/*.o $(OBJDIR)/*.mod *.so f90wrap* pymain.py *.pyc mesh/*
 
-test: mymodule.so
-	python pyconstruct2d.py
+test: all
+	python3 pyconstruct2d.py -f mesh/naca12
+	python3 pyconstruct2d.py --sharp -f mesh/naca12
+
+diff: test
+	echo 'Test naca12.dat'
+	diff mesh/naca12.dat       ref/naca12.dat
+	echo 'Test naca12-sharp.dat'
+	diff mesh/naca12-sharp.dat ref/naca12-sharp.dat

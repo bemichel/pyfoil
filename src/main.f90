@@ -176,14 +176,14 @@ subroutine compute_grid(whichgrid, surf, options, grid, qstats)
   call qstats_allocation(qstats, grid%imax, grid%jmax)
   call compute_quality_stats(grid, qstats)
 
-! Write out grid
-  iunit = 12
-  open(iunit, file=trim(options%project_name)//'.dat', status='replace')
-  write(*,*)
-  write(*,*) 'Writing grid to file '//trim(options%project_name)//'.dat ...'
-  call write_srf_grid_tecplot(iunit, grid, options%griddim, options%nplanes,           &
-                              options%plane_delta)
-  close(iunit)
+! ! Write out grid
+!   iunit = 12
+!   open(iunit, file=trim(options%project_name)//'.dat', status='replace')
+!   write(*,*)
+!   write(*,*) 'Writing grid to file '//trim(options%project_name)//'.dat ...'
+!   call write_srf_grid_tecplot(iunit, grid, options%griddim, options%nplanes,           &
+!                               options%plane_delta)
+!   close(iunit)
 
 ! Write out grid
 
