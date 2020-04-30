@@ -1,6 +1,6 @@
 import math
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 import pymain
 import Converter.Internal as I
@@ -40,7 +40,7 @@ if __name__ == "__main__":
   greeting('2.1.4')
 
   nsize = 100
-  sharp = False
+  sharp = True
   if sharp:
     project_name = "naca12-sharp"
     x, y = create_airfoil(nsize, airfoil_naca0012_sharp)
@@ -109,21 +109,26 @@ if __name__ == "__main__":
   I.newDataArray('GrowthZ', value=growthz, parent=f)
   I.newDataArray('GrowthN', value=growthn, parent=f)
 
+  # Create Family
+  fwall = I.newFamily(name='Wall', parent=b)
+  fnref = I.newFamily(name='NRef', parent=b)
+  fsym  = I.newFamily(name='Sym', parent=b)
+
   # Create join
   t = X.connectMatch(t, tol=1.e-9)
 
   # Create BC
   if sharp:
-    t = C.addBC2Zone(t, 'nref',  'FamilySpecified:NRef',  'imin')
-    t = C.addBC2Zone(t, 'nref',  'FamilySpecified:NRef',  'imax')
-    t = C.addBC2Zone(t, 'wall',  'FamilySpecified:Wall',  'jmin')
-    t = C.addBC2Zone(t, 'nref',  'FamilySpecified:NRef',  'jmax')
+    C._addBC2Zone(t, 'nref',  'FamilySpecified:NRef',  'imin')
+    C._addBC2Zone(t, 'nref',  'FamilySpecified:NRef',  'imax')
+    C._addBC2Zone(t, 'wall',  'FamilySpecified:Wall',  'jmin')
+    C._addBC2Zone(t, 'nref',  'FamilySpecified:NRef',  'jmax')
   else:
-    t = C.addBC2Zone(t, 'wall',  'FamilySpecified:Wall',  'jmin')
-    t = C.addBC2Zone(t, 'nref',  'FamilySpecified:NRef',  'jmax')
+    C._addBC2Zone(t, 'wall',  'FamilySpecified:Wall',  'jmin')
+    C._addBC2Zone(t, 'nref',  'FamilySpecified:NRef',  'jmax')
 
-  t = C.addBC2Zone(t, 'sym',   'FamilySpecified:Sym',   'kmin')
-  t = C.addBC2Zone(t, 'sym',   'FamilySpecified:Sym',   'kmax')
+  C._addBC2Zone(t, 'sym',   'FamilySpecified:Sym',   'kmin')
+  C._addBC2Zone(t, 'sym',   'FamilySpecified:Sym',   'kmax')
 
   I.printTree(t)
   C.convertPyTree2File(t, f'{project_name}.hdf', format='bin_hdf')
