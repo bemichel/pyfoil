@@ -1,51 +1,34 @@
-FCFLAGS=-g -O3 -Wall -static
+SRCDIR=src
+OBJDIR=obj
+FCFLAGS=-g -O3 -Wall -static -fPIC -J$(OBJDIR)
 
-all: pymain.so
+VPATH=%.f90 src
+VPATH=%.o obj
 
-pymain.so : xfoil_deps.o vardef.o util.o memory.o optimization.o math_deps.o edge_util.o surface_util.o elliptic_surface_grid.o hyperbolic_surface_grid.o surface_grid.o main.o f90wrap_main.f90
-	f2py-f90wrap -c -m _pymain *.o f90wrap_*.f90
+SRC=vardef.f90 util.f90 memory.f90 optimization.f90 math_deps.f90 edge_util.f90 surface_util.f90 elliptic_surface_grid.f90 hyperbolic_surface_grid.f90 surface_grid.f90 main.f90
 
-f90wrap_main.f90 : vardef.f90 util.f90 memory.f90 optimization.f90 math_deps.f90 edge_util.f90 surface_util.f90 elliptic_surface_grid.f90 hyperbolic_surface_grid.f90 surface_grid.f90 main.f90
-	f90wrap -m pymain vardef.f90 util.f90 memory.f90 optimization.f90 math_deps.f90 edge_util.f90 surface_util.f90 elliptic_surface_grid.f90 hyperbolic_surface_grid.f90 surface_grid.f90 main.f90
+OBJ=$(patsubst %.f90, %.o, $(SRC))
 
-xfoil_deps.o : xfoil_deps.f
-	gfortran -c -fPIC -fdefault-real-8 xfoil_deps.f
+SRCS=$(addprefix $(SRCDIR)/, $(SRC) )
+OBJS=$(addprefix $(OBJDIR)/, $(OBJ) )
 
-vardef.o : vardef.f90
-	gfortran -c $(FCFLAGS) -fPIC vardef.f90
+all: $(OBJDIR)/xfoil_deps.o $(OBJS) pymain.so
 
-util.o : util.f90
-	gfortran -c $(FCFLAGS) -fPIC util.f90
+pymain.so : $(OBJDIR)/xfoil_deps.o $(OBJS) f90wrap_main.f90
+	f2py-f90wrap -I$(OBJDIR) -c -m _pymain $(OBJDIR)/xfoil_deps.o $(OBJS) f90wrap_*.f90
 
-memory.o : memory.f90
-	gfortran -c $(FCFLAGS) -fPIC memory.f90
+f90wrap_main.f90 : $(SRCS)
+	f90wrap -m pymain $(SRCS)
 
-optimization.o : optimization.f90
-	gfortran -c $(FCFLAGS) -fPIC optimization.f90
+$(OBJDIR)/xfoil_deps.o : $(SRCDIR)/xfoil_deps.f
+	gfortran -fdefault-real-8 $(FCFLAGS) -c -o $@ $<
 
-math_deps.o : math_deps.f90
-	gfortran -c $(FCFLAGS) -fPIC math_deps.f90
-
-edge_util.o : edge_util.f90
-	gfortran -c $(FCFLAGS) -fPIC edge_util.f90
-
-surface_util.o : surface_util.f90
-	gfortran -c $(FCFLAGS) -fPIC surface_util.f90
-
-elliptic_surface_grid.o : elliptic_surface_grid.f90
-	gfortran -c $(FCFLAGS) -fPIC elliptic_surface_grid.f90
-
-hyperbolic_surface_grid.o : hyperbolic_surface_grid.f90
-	gfortran -c $(FCFLAGS) -fPIC hyperbolic_surface_grid.f90
-
-surface_grid.o : surface_grid.f90
-	gfortran -c $(FCFLAGS) -fPIC surface_grid.f90
-
-main.o : main.f90
-	gfortran -c $(FCFLAGS) -fPIC main.f90
+$(OBJDIR)/%.o: $(SRCDIR)/%.f90
+	@mkdir -p $(dir $@)
+	gfortran $(FCFLAGS) -c -o $@ $<
 
 clean:
-	-rm *.o *.so *.mod f90wrap* pymain.py *.pyc
+	-rm $(OBJDIR)/*.o $(OBJDIR)/*.mod *.so f90wrap* pymain.py *.pyc
 
 test: mymodule.so
 	python pyconstruct2d.py
