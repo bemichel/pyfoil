@@ -1,26 +1,3 @@
-#  f90wrap: F90 to Python interface generator with derived type support
-#
-#  Copyright James Kermode 2011-2018
-#
-#  This file is part of f90wrap
-#  For the latest version see github.com/jameskermode/f90wrap
-#
-#  f90wrap is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU Lesser General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#
-#  f90wrap is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU Lesser General Public License for more details.
-#
-#  You should have received a copy of the GNU Lesser General Public License
-#  along with f90wrap. If not, see <http://www.gnu.org/licenses/>.
-#
-#  If you would like to license the source code under different terms,
-#  please contact James Kermode, james.kermode@gmail.com
-
 import math
 import numpy as np
 import matplotlib.pyplot as plt
@@ -28,8 +5,7 @@ import matplotlib.pyplot as plt
 import pymain
 
 def greeting(version):
-  print('This is Construct2D, the structured grid generator for airfoils')
-  print(f'Version: {version}')
+  print(f'Use Version: {version} of Construct2D, a structured grid generator for airfoils')
 
 def airfoil_naca0012(x):
   return 0.6*(0.2969*np.sqrt(x) - 0.1260*x - 0.3516*x*x + 0.2843*x*x*x - 0.1015*x*x*x*x)
