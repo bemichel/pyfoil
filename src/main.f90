@@ -44,15 +44,23 @@ end subroutine allouemonarraycheri
 !
 !=============================================================================80
 subroutine compute_grid(whichgrid, surf, options)
-  Use vardef,       only : airfoil_surface_type, options_type
+  Use vardef,       only : airfoil_surface_type, options_type,      &
+                           srf_grid_type, grid_stats_type
   Use edge_grid,    only : transform_airfoil
-  Use surface_grid, only : create_grid
+  Use surface_grid, only : create_grid, copy_edges, compute_quality_stats
+  Use memory,       only : grid_allocation, grid_deallocation,      &
+                           qstats_allocation, qstats_deallocation
+  Use util,         only : write_srf_grid, write_srf_grid_tecplot,  &
+                           write_quality_stats, write_bc_file
 
   character(4), intent(in)                  :: whichgrid
   type(airfoil_surface_type), intent(inout) :: surf
   type(options_type), intent(inout)         :: options
 
   type(airfoil_surface_type) :: newsurf
+  type(srf_grid_type)        :: grid
+  type(grid_stats_type)      :: qstats
+  integer iunit
 
   write(*,*) 'Generate grid for airfoil'
   write(*,*)
@@ -107,9 +115,15 @@ subroutine compute_grid(whichgrid, surf, options)
       options%imax = options%nsrf + options%nwake*2
     end if
 
+! Allocate grid
+
+    grid%imax = options%imax
+    grid%jmax = options%jmax
+    call grid_allocation(grid)
+
 !   Create surface grid
 
-    call create_grid(newsurf, options, .true.)
+    call create_grid(newsurf, options, grid, .true.)
 
 !   Deallocate new airfoil
 
@@ -141,11 +155,71 @@ subroutine compute_grid(whichgrid, surf, options)
       options%imax = options%nsrf + options%nwake*2
     end if
 
+! Allocate grid
+
+    grid%imax = options%imax
+    grid%jmax = options%jmax
+    call grid_allocation(grid)
+
 !   Create surface grid
 
-    call create_grid(surf, options, .false.)
+    call create_grid(surf, options, grid, .false.)
 
   end if
+
+! Copy edges for O- or C-grid
+
+  call copy_edges(grid, options%topology)
+
+! Compute grid quality information
+
+  call qstats_allocation(qstats, grid%imax, grid%jmax)
+  call compute_quality_stats(grid, qstats)
+
+! Write out grid
+  iunit = 12
+  open(iunit, file=trim(options%project_name)//'.dat', status='replace')
+  write(*,*)
+  write(*,*) 'Writing grid to file '//trim(options%project_name)//'.dat ...'
+  call write_srf_grid_tecplot(iunit, grid, options%griddim, options%nplanes,           &
+                              options%plane_delta)
+  close(iunit)
+
+! Write out grid
+
+  iunit = 12
+  open(iunit, file=trim(options%project_name)//'.p3d', status='replace')
+  write(*,*)
+  write(*,*) 'Writing grid to file '//trim(options%project_name)//'.p3d ...'
+  call write_srf_grid(iunit, grid, options%griddim, options%nplanes,           &
+                      options%plane_delta)
+  close(iunit)
+
+! Write grid quality information to file
+
+  iunit = 13
+  open(iunit, file=trim(options%project_name)//'_stats.p3d', status='replace')
+  write(*,*)
+  write(*,*) 'Writing grid quality information to file '//                     &
+             trim(options%project_name)//'_stats.p3d ...'
+  call write_quality_stats(iunit, qstats, options%griddim, options%nplanes)
+  close(iunit)
+
+! Deallocate grid
+
+  call grid_deallocation(grid)
+  call qstats_deallocation(qstats)
+
+! Write boundary conditions file (.nmf format)
+
+  iunit = 14
+  open(iunit, file=trim(options%project_name)//'.nmf', status='replace')
+  write(*,*)
+  write(*,*) 'Writing boundary conditions file '//                             &
+             trim(options%project_name)//'.nmf ...'
+  call write_bc_file(iunit, options)
+  close(iunit)
+
 
 end subroutine compute_grid
 

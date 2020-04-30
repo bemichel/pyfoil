@@ -28,32 +28,21 @@ module surface_grid
 ! Driver subroutine to create surface grid
 !
 !=============================================================================80
-subroutine create_grid(foil, options, smooth)
+subroutine create_grid(foil, options, grid, smooth)
 
   Use vardef,                  only : airfoil_surface_type, options_type,      &
-                                      srf_grid_type, grid_stats_type
-  Use memory,                  only : grid_allocation, grid_deallocation,      &
-                                      qstats_allocation, qstats_deallocation
+                                      srf_grid_type
   Use edge_grid,               only : fillet_trailing_edge, create_farfield,   &
                                       add_wake_points, apply_foil_spacing
-  Use util,                    only : write_srf_grid, write_srf_grid_tecplot,  &
-                                      write_quality_stats, write_bc_file
   Use elliptic_surface_grid,   only : algebraic_grid, elliptic_grid
   Use hyperbolic_surface_grid, only : hyperbolic_grid
 
   type(airfoil_surface_type), intent(inout) :: foil
   type(options_type), intent(in) :: options
   logical, intent(in) :: smooth
+  type(srf_grid_type), intent(inout) :: grid
 
-  type(srf_grid_type) :: grid
-  type(grid_stats_type) :: qstats
-  integer iunit, srf1, srf2, nrm1, nrm2
-
-! Allocate grid
-
-  grid%imax = options%imax
-  grid%jmax = options%jmax
-  call grid_allocation(grid)
+  integer srf1, srf2, nrm1, nrm2
 
 ! Set airfoil surface bounds depending on topology
 
@@ -138,59 +127,6 @@ subroutine create_grid(foil, options, smooth)
       stop
 
   end select
-
-! Copy edges for O- or C-grid
-
-  call copy_edges(grid, options%topology)
-
-! Compute grid quality information
-
-  call qstats_allocation(qstats, grid%imax, grid%jmax)
-  call compute_quality_stats(grid, qstats)
-
-! Write out grid
-  iunit = 12
-  open(iunit, file=trim(options%project_name)//'.dat', status='replace')
-  write(*,*)
-  write(*,*) 'Writing grid to file '//trim(options%project_name)//'.dat ...'
-  call write_srf_grid_tecplot(iunit, grid, options%griddim, options%nplanes,           &
-                              options%plane_delta)
-  close(iunit)
-
-! Write out grid
-
-  iunit = 12
-  open(iunit, file=trim(options%project_name)//'.p3d', status='replace')
-  write(*,*)
-  write(*,*) 'Writing grid to file '//trim(options%project_name)//'.p3d ...'
-  call write_srf_grid(iunit, grid, options%griddim, options%nplanes,           &
-                      options%plane_delta)
-  close(iunit)
-
-! Write grid quality information to file
-
-  iunit = 13
-  open(iunit, file=trim(options%project_name)//'_stats.p3d', status='replace')
-  write(*,*)
-  write(*,*) 'Writing grid quality information to file '//                     &
-             trim(options%project_name)//'_stats.p3d ...'
-  call write_quality_stats(iunit, qstats, options%griddim, options%nplanes)
-  close(iunit)
-
-! Deallocate grid
-
-  call grid_deallocation(grid)
-  call qstats_deallocation(qstats)
-
-! Write boundary conditions file (.nmf format)
-
-  iunit = 14
-  open(iunit, file=trim(options%project_name)//'.nmf', status='replace')
-  write(*,*)
-  write(*,*) 'Writing boundary conditions file '//                             &
-             trim(options%project_name)//'.nmf ...'
-  call write_bc_file(iunit, options)
-  close(iunit)
 
 end subroutine create_grid
 
