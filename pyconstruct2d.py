@@ -3,6 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import pymain
+import Converter.Internal as I
+import Converter.PyTree   as C
+import Connector.PyTree   as X
 
 def greeting(version):
   print(f'Use Version: {version} of Construct2D, a structured grid generator for airfoils')
@@ -37,11 +40,13 @@ if __name__ == "__main__":
   greeting('2.1.4')
 
   nsize = 100
-  sharp = True
+  sharp = False
   if sharp:
+    project_name = "naca12-sharp"
     x, y = create_airfoil(nsize, airfoil_naca0012_sharp)
     y[0] =  y[-1] = 0.
   else:
+    project_name = "naca12"
     x, y = create_airfoil(nsize, airfoil_naca0012)
   # plt.plot(x, y, 'o')
   # plt.show()
@@ -51,50 +56,79 @@ if __name__ == "__main__":
   #       f.write(f" {x[i]} {y[i]}\n")
 
   npoints = x.shape[0]
-  print(f"npoints = {npoints}")
 
   surf = pymain.vardef.airfoil_surface_type()
   surf.npoints = npoints
-  print('********* surf_allocation')
   pymain.memory.surf_allocation(surf)
   pymain.util.init_airfoil(x,y,surf)
 
-  project_name = "mynaca12"
   options = pymain.vardef.options_type()
   pymain.util.set_project_name_options(len(project_name), project_name.encode('utf-8'), options)
   pymain.util.set_defaults(surf, options)
-  print(f"surf = {surf}")
   print(f"options = {options}")
-  pymain.main.compute_grid(b'SMTH', surf, options)
 
-  sys.exit(1)
+  grid   = pymain.vardef.srf_grid_type()
+  qstats = pymain.vardef.grid_stats_type()
+  pymain.main.compute_grid(b'SMTH', surf, options, grid, qstats)
 
-  print(f"dir(pymain) = {dir(pymain)}")
+  create2d = False
+  if create2d:
+    shape2d = list(grid.x.shape)
+    xm = grid.x
+    ym = grid.y
+    zm = np.zeros(shape2d, dtype=np.float64, order='F')
+    dims = [[shape2d[0],shape2d[0]-1,0], [shape2d[1],shape2d[1]-1,0]]
+  else:
+    shape3d = list(grid.x.shape)+[2]
+    xm = np.zeros(shape3d, dtype=np.float64, order='F')
+    ym = np.zeros(shape3d, dtype=np.float64, order='F')
+    zm = np.zeros(shape3d, dtype=np.float64, order='F')
+    for i in range(2):
+      xm[:,:,i] = grid.x
+      ym[:,:,i] = grid.y
+      zm[:,:,i] = 0.1*i
+    dims = [[shape3d[0],shape3d[0]-1,0], [shape3d[1],shape3d[1]-1,0], [2,2,0]]
+    skewang = np.zeros(shape3d, dtype=np.float64, order='F')
+    growthz = np.zeros(shape3d, dtype=np.float64, order='F')
+    growthn = np.zeros(shape3d, dtype=np.float64, order='F')
+    for i in range(2):
+      skewang[:,:,i] = qstats.skewang
+      growthz[:,:,i] = qstats.growthz
+      growthn[:,:,i] = qstats.growthn
 
-  grid = pymain.vardef.srf_grid_type()
-  grid.imax = 100
-  grid.jmax = 200
+  # Create CGNS Tree
+  t = I.newCGNSTree()
+  b = I.newCGNSBase('Base', 3, 3, parent=t)
+  z = I.newZone('Zone', dims, 'Structured', parent=b)
+  g = I.newGridCoordinates(parent=z)
+  I.newDataArray('CoordinateX', value=xm, parent=g)
+  I.newDataArray('CoordinateY', value=ym, parent=g)
+  I.newDataArray('CoordinateZ', value=zm, parent=g)
+  f = I.newFlowSolution(name='FlowSolution', gridLocation='Vertex', parent=z)
+  I.newDataArray('SkewAngle', value=skewang, parent=f)
+  I.newDataArray('GrowthZ', value=growthz, parent=f)
+  I.newDataArray('GrowthN', value=growthn, parent=f)
 
-  print('********* grid_allocation')
-  pymain.memory.grid_allocation(grid)
-  # print('grid=',grid)
+  # Create join
+  t = X.connectMatch(t, tol=1.e-9)
 
-  tt = pymain.main.mytype()
-  tt.val = 17
-  b=np.zeros(17, dtype=np.float64, order='F')
+  # Create BC
+  if sharp:
+    t = C.addBC2Zone(t, 'nref',  'FamilySpecified:NRef',  'imin')
+    t = C.addBC2Zone(t, 'nref',  'FamilySpecified:NRef',  'imax')
+    t = C.addBC2Zone(t, 'wall',  'FamilySpecified:Wall',  'jmin')
+    t = C.addBC2Zone(t, 'nref',  'FamilySpecified:NRef',  'jmax')
+  else:
+    t = C.addBC2Zone(t, 'wall',  'FamilySpecified:Wall',  'jmin')
+    t = C.addBC2Zone(t, 'nref',  'FamilySpecified:NRef',  'jmax')
 
-  print('********* BEFORE')
-  print('b=',b)
-  # print('tt=',tt)
-  pymain.main.mysubroutine(4,b,tt)
-  pymain.main.allouemonarraycheri(4,tt)
-  print(tt.consvar)
-  print('********* AFTER')
-  print('b=',b)
-  print('tt=',tt)
+  t = C.addBC2Zone(t, 'sym',   'FamilySpecified:Sym',   'kmin')
+  t = C.addBC2Zone(t, 'sym',   'FamilySpecified:Sym',   'kmax')
 
+  I.printTree(t)
+  C.convertPyTree2File(t, f'{project_name}.hdf', format='bin_hdf')
+  C.convertPyTree2File(t, f'{project_name}.cgns', format='bin_adf')
 
-  print('********* grid_deallocation')
+  pymain.memory.qstats_deallocation(qstats)
   pymain.memory.grid_deallocation(grid)
-  print('********* surf_deallocation')
   pymain.memory.surf_deallocation(surf)

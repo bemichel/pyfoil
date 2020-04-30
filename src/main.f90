@@ -43,7 +43,7 @@ end subroutine allouemonarraycheri
 ! Driver subroutine to execute user commands
 !
 !=============================================================================80
-subroutine compute_grid(whichgrid, surf, options)
+subroutine compute_grid(whichgrid, surf, options, grid, qstats)
   Use vardef,       only : airfoil_surface_type, options_type,      &
                            srf_grid_type, grid_stats_type
   Use edge_grid,    only : transform_airfoil
@@ -56,10 +56,10 @@ subroutine compute_grid(whichgrid, surf, options)
   character(4), intent(in)                  :: whichgrid
   type(airfoil_surface_type), intent(inout) :: surf
   type(options_type), intent(inout)         :: options
+  type(srf_grid_type), intent(inout)        :: grid
+  type(grid_stats_type), intent(inout)      :: qstats
 
   type(airfoil_surface_type) :: newsurf
-  type(srf_grid_type)        :: grid
-  type(grid_stats_type)      :: qstats
   integer iunit
 
   write(*,*) 'Generate grid for airfoil'
@@ -205,10 +205,10 @@ subroutine compute_grid(whichgrid, surf, options)
   call write_quality_stats(iunit, qstats, options%griddim, options%nplanes)
   close(iunit)
 
-! Deallocate grid
+! ! Deallocate grid
 
-  call grid_deallocation(grid)
-  call qstats_deallocation(qstats)
+!   call grid_deallocation(grid)
+!   call qstats_deallocation(qstats)
 
 ! Write boundary conditions file (.nmf format)
 
